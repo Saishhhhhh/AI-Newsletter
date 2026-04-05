@@ -41,7 +41,7 @@ def get_top_repos():
 
     repo_info = []
 
-    for repo in sorted_repos[:10]:
+    for repo in sorted_repos[:5]:
 
         repo_info.append({
         "Name": repo['name'],

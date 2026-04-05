@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-def get_ai_news_last_week(page_size=10):
+def get_ai_news_last_week(page_size=5):
     today = datetime.utcnow()
     last_week = today - timedelta(days=7)
 

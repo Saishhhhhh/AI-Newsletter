@@ -73,13 +73,16 @@ def get_trending_ai_products(min_votes=20):
     product_info = []
 
     for product in filtered_products:
-        product_info.append({
-            "Name": product["name"],
-            "Tagline": product["tagline"],
-            "Description": product["description"] or "No description",
-            "Votes": product["votesCount"],
-            "Link": product["url"]
-        })
+        if len(product_info) < 5:
+            product_info.append({
+                "Name": product["name"],
+                "Tagline": product["tagline"],
+                "Description": product["description"] or "No description",
+                "Votes": product["votesCount"],
+                "Link": product["url"]
+            })
+        else:
+            break
 
     return product_info
 
