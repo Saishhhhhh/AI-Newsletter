@@ -45,13 +45,21 @@ async def research_data(state: NewsletterState):
 
     # print("Available tools:", named_tools.keys())
 
-    news = await named_tools["get_ai_news"].ainvoke({})
+    # news = await named_tools["get_ai_news"].ainvoke({})
 
-    papers = await named_tools["get_arxiv_papers"].ainvoke({"query": "artificial intelligence", "max_results": 3})
+    # papers = await named_tools["get_arxiv_papers"].ainvoke({"query": "artificial intelligence", "max_results": 3})
 
-    github = await named_tools["get_github_trending"].ainvoke({})
+    # github = await named_tools["get_github_trending"].ainvoke({})
 
-    products = await named_tools["get_ai_products_trending"].ainvoke({})
+    # products = await named_tools["get_ai_products_trending"].ainvoke({})
+
+    results = await asyncio.gather(
+    named_tools["get_ai_news"].ainvoke({}),
+    named_tools["get_arxiv_papers"].ainvoke({"query": "artificial intelligence", "max_results": 3}),
+    named_tools["get_github_trending"].ainvoke({}),
+    named_tools["get_ai_products_trending"].ainvoke({})
+    )
+    news, papers, github, products = results
 
     return {
         "arxiv_research": papers,
