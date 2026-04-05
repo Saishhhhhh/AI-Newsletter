@@ -5,11 +5,14 @@ import asyncio
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from html_parser import convert_md_to_html
 from dotenv import load_dotenv
 
 load_dotenv()
 
 llm = ChatGroq(model = "openai/gpt-oss-120b")
+
+today = datetime.now(timezone.utc).strftime("%B %d, %Y")
 
 SERVERS = { 
     "AI NewsLetter Research": {
@@ -28,6 +31,7 @@ class NewsletterState(TypedDict):
     github_research: str
     product_hunt_research: str
     final_md: str
+    final_html: str
 
 async def research_data(state: NewsletterState):
     
@@ -65,7 +69,7 @@ def data_agg_md(state: NewsletterState):
     Product Hunt: {state.get("product_hunt_research", "None")}
     """
     
-    system_prompt = """
+    system_prompt = f"""
     You write a tight, high-signal AI newsletter for busy builders. Every sentence earns its place or gets cut.
 
     BANNED PHRASES (never use these):
@@ -134,8 +138,6 @@ def data_agg_md(state: NewsletterState):
     - Never say "no data available."
     """
 
-    today = datetime.now(timezone.utc).strftime("%B %d, %Y")
-
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(content=f"Here is the raw research data: \n {raw_data} and the date is: {today}")
@@ -147,8 +149,12 @@ def data_agg_md(state: NewsletterState):
     return {"final_md": response.content}
 
 def final_html(state: NewsletterState):
-    print ("I am from final_html node")
-    return state
+
+    md_output = state["final_md"]
+
+    html_output = convert_md_to_html(md_output, is_file = False)
+
+    return {"final_html": html_output}
 
 graph = StateGraph(NewsletterState)
 
@@ -166,9 +172,10 @@ workflow = graph.compile()
 initial_state = {}
 Newsletter = asyncio.run(workflow.ainvoke(initial_state))
 
-today = datetime.now(timezone.utc).strftime("%B %d, %Y")
-
 print(Newsletter['final_md'])
 
 with open(f"./Newsletter_mds/{today}.md", "w", encoding="utf-8") as f:
   f.write(Newsletter['final_md'])
+
+with open(f"./Newsletter_html/{today}.html", "w", encoding="utf-8") as f:
+    f.write(Newsletter['final_html'])
