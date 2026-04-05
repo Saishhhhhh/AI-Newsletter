@@ -8,14 +8,18 @@ import json
 mcp = FastMCP(
     name = "AI Newsletter Tools",
     instructions=(
-        "MCP servr providing 4 AI newsletter research tools. "
-        "Returns structured JSON output. "
-        ""
+        "This MCP server provides tools for generating an AI newsletter. "
+        "Available tools include:\n"
+        "- get_ai_news: latest AI news\n"
+        "- get_arxiv_papers: recent AI research papers\n"
+        "- get_github_trending: trending AI GitHub repos\n"
+        "- get_ai_products_trending: trending AI tools from Product Hunt\n\n"
+        "All tools return structured JSON strings."
     )
 )
 
 @mcp.tool()
-def get_ai_news():
+def get_ai_news() -> str:
     """
     Fetch the latest Artificial Intelligence news articles from the past week.
 
@@ -31,12 +35,17 @@ def get_ai_news():
             - source (str): Name of the news source
 
     """
-    response = get_ai_news_last_week()
+    try:
+        response = get_ai_news_last_week()
 
-    return response.to_json()
+        if isinstance(response, str):
+            return response
+        return json.dumps(response, indent=2, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 @mcp.tool()
-def get_arxiv_papers():
+def get_arxiv_papers(query: str = "artificial intelligence", max_results: int = 3) -> str:
     """
     Retrieve recent research papers on Artificial Intelligence from arXiv.
 
@@ -52,12 +61,23 @@ def get_arxiv_papers():
             - Summary (str): Abstract or short summary
             - Link (str): URL to the paper
     """
-    response = search_arxiv("artificial intelligence", max_results=3)
 
-    return response.to_json()
+    max_results = min(max_results, 10)
+    if not query:
+        query = "artificial intelligence"
+
+    try:
+        response = search_arxiv(query, max_results)
+
+        if isinstance(response, str):
+            return response
+        return json.dumps(response, indent=2, default=str)
+
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 @mcp.tool()
-def get_github_trending():
+def get_github_trending() -> str:
     """
     Fetch trending GitHub repositories related to Artificial Intelligence.
 
@@ -71,12 +91,18 @@ def get_github_trending():
             - Stars (int): Number of GitHub stars
             - Link (str): URL to the repository
     """
-    response = get_top_repos()
+    try:
+        response = get_top_repos()
 
-    return response.to_json()
+        if isinstance(response, str):
+            return response
+        return json.dumps(response, indent=2, default=str)
+
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 @mcp.tool()
-def get_ai_products_trending():
+def get_ai_products_trending() -> str:
     """
     Retrieve trending AI products from Product Hunt.
 
@@ -91,10 +117,15 @@ def get_ai_products_trending():
             - Votes (int): Number of upvotes on Product Hunt
             - Link (str): URL to the product page
     """
-    response = get_trending_ai_products()
+    try:
+        response = get_trending_ai_products()
 
-    return response.to_json()
+        if isinstance(response, str):
+            return response
+        return json.dumps(response, indent=2, default=str)
 
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 if __name__ == "__main__":
     mcp.run()

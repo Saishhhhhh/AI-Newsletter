@@ -83,4 +83,5 @@ def get_trending_ai_products(min_votes=20):
 
     return product_info
 
-print(get_trending_ai_products())
+if __name__ == "__main__":
+    print(get_trending_ai_products())

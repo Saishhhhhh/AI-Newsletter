@@ -42,4 +42,5 @@ def get_ai_news_last_week(page_size=10):
 
     return news_info
 
-print(get_ai_news_last_week())
+if __name__ == "__main__":
+    print(get_ai_news_last_week())

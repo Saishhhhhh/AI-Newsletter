@@ -52,4 +52,5 @@ def get_top_repos():
         
     return repo_info
 
-print(get_top_repos())
+if __name__ == "__main__":
+    print(get_top_repos())

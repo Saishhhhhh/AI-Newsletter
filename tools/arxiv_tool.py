@@ -19,10 +19,11 @@ def search_arxiv(query="machine learning", max_results=5):
         print("Error fetching data")
         return
     
-    # Parse XML response
-    root = ET.fromstring(response.content)
+    try:
+        root = ET.fromstring(response.content)
+    except ET.ParseError:
+        return []
     
-    # Namespace required for parsing
     ns = {"atom": "http://www.w3.org/2005/Atom"}
 
     paper_info = []
@@ -54,5 +55,5 @@ def search_arxiv(query="machine learning", max_results=5):
     return paper_info
 
 # Example usage
-print(search_arxiv("artificial intelligence", max_results=3))
-
+if __name__ == "__main__":
+    print(search_arxiv("artificial intelligence", max_results=3))

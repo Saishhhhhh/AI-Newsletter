@@ -18,4 +18,5 @@ def main():
 
 research_date = main()
 
-print(research_date)
+if __name__ == "__main__":
+    print(research_date)
