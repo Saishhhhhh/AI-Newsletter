@@ -54,4 +54,5 @@ def search_arxiv(query="machine learning", max_results=5):
     return paper_info
 
 # Example usage
-search_arxiv("artificial intelligence", max_results=3)
+print(search_arxiv("artificial intelligence", max_results=3))
+

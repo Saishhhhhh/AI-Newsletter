@@ -39,19 +39,17 @@ def get_top_repos():
         reverse=True
     )
 
-    description = repo["description"] or "No description available"
-
     repo_info = []
 
     for repo in sorted_repos[:10]:
 
         repo_info.append({
         "Name": repo['name'],
-        "description": description,
+        "description": repo["description"] or "No description available",
         "Stars": repo['stargazers_count'],
         "Link": repo['html_url']
     })
         
     return repo_info
 
-get_top_repos()
+print(get_top_repos())

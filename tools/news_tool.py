@@ -1,6 +1,8 @@
 import requests
 from datetime import datetime, timedelta
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 def get_ai_news_last_week(page_size=10):
     today = datetime.utcnow()
@@ -39,3 +41,5 @@ def get_ai_news_last_week(page_size=10):
         news_info.append(article_dict)
 
     return news_info
+
+print(get_ai_news_last_week())

@@ -16,25 +16,34 @@ def get_trending_ai_products(min_votes=20):
 
     query = f"""
     {{
-      posts(first: 50, postedAfter: "{one_week_ago}") {{
+    posts(
+        first: 50,
+        postedAfter: "{one_week_ago}",
+        order: VOTES
+    ) {{
         edges {{
-          node {{
+        node {{
             name
             tagline
             url
             votesCount
             createdAt
             description
-          }}
         }}
-      }}
+        }}
+    }}
     }}
     """
 
+    token = os.getenv("PRODUCT_HUNT_TOKEN")
+
+    if not token:
+        raise ValueError("Missing PRODUCT_HUNT_TOKEN in .env file")
+
     headers = {
-        "Authorization": f"Bearer {os.getenv("PRODUCT_HUNT_TOKEN", "")}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
-    }
+}
 
     response = requests.post(url, json={"query": query}, headers=headers)
 
@@ -73,3 +82,5 @@ def get_trending_ai_products(min_votes=20):
         })
 
     return product_info
+
+print(get_trending_ai_products())
