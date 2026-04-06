@@ -81,7 +81,7 @@ graph.add_node("tools", tool_node)
 graph.add_node("final_html", final_html)
 
 graph.add_edge(START, 'agent')
-graph.add_conditional_edges("agent", should_continue)
+graph.add_conditional_edges("agent", should_continue, ["tools", "final_html"])
 graph.add_edge("tools", "agent")
 graph.add_edge("final_html", END)
 
@@ -96,3 +96,6 @@ Newsletter = asyncio.run(workflow.ainvoke(initial_state))
 
 with open(f"./Newsletter_html/{today}.html", "w", encoding="utf-8") as f:
     f.write(Newsletter['final_html'])
+
+with open(f"./Newsletter_mds/{today}.md", "w", encoding="utf-8") as f:
+    f.write(Newsletter['messages'][-1].content)

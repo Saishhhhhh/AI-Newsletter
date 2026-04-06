@@ -4,19 +4,11 @@ __pycache__/
 *.pyc
 
 # Output (auto-generated)
-research/*.md
-output/final.md
-output/final.html
-Newsletter_mds/*.md
-Newsletter_html/*.html
+research/
+output/
+Newsletter_mds/
+Newsletter_html/
 
 # IDE
 .vscode/
 .idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Database
-accounts.db
