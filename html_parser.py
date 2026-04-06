@@ -453,6 +453,9 @@ def render_html(data: dict) -> str:
 
     inner = "\n".join(parts)
 
+    # Convert markdown bold (**) to HTML strong tags
+    inner = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", inner)
+
     return f"""<!doctype html>
 <html lang="en">
 <head>

@@ -8,6 +8,7 @@ research/*.md
 output/final.md
 output/final.html
 Newsletter_mds/*.md
+Newsletter_html/*.html
 
 # IDE
 .vscode/
