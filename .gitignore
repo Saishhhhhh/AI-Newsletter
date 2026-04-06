@@ -3,12 +3,6 @@
 __pycache__/
 *.pyc
 
-# Output (auto-generated)
-research/
-output/
-Newsletter_mds/
-Newsletter_html/
-
 # IDE
 .vscode/
 .idea/
