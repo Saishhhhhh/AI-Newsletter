@@ -35,8 +35,23 @@
 
 This system treats newsletter generation as an **agent reasoning problem**, not a scripted pipeline. The core loop is:
 
-```
-Research → Draft → Self-Critique → Revise → Validate → Render → Deliver
+```mermaid
+flowchart LR
+    A["🔍 Research"] --> B["✍️ Draft"]
+    B --> C["🧐 Self-Critique"]
+    C -->|fail| D["🔄 Revise"]
+    D --> C
+    C -->|pass| E["🔗 Validate URLs"]
+    E --> F["🎨 Render HTML"]
+    F --> G["📧 Deliver"]
+
+    style A fill:#1e3a5f,color:#93c5fd
+    style B fill:#1e3a5f,color:#93c5fd
+    style C fill:#3b1f5e,color:#c4b5fd
+    style D fill:#3b1f5e,color:#c4b5fd
+    style E fill:#1a3a2f,color:#6ee7b7
+    style F fill:#1a3a2f,color:#6ee7b7
+    style G fill:#4a1942,color:#f9a8d4
 ```
 
 Three principles drive every architectural decision:
@@ -109,34 +124,39 @@ class NewsletterState(TypedDict):
 
 ### 3.2 Graph Topology
 
-```
-START
-  │
-  ▼
-[agent] ──── has tool_calls? ──► [tools] ──┐
-  ▲                                         │
-  └─────────────────────────────────────────┘  (loop)
-  │
-  │  no tool_calls (draft ready)
-  ▼
-[start_critique]
-  │
-  ▼
-[critique] ──── PASS or max revisions ──► [verify_sources]
-  ▲                  │
-  │   REVISE:...     │
-  └─── [revise] ◄────┘
+```mermaid
+stateDiagram-v2
+    direction TB
 
-[verify_sources]
-  │
-  ▼
-[final_html]
-  │
-  ▼
-[send_email]
-  │
-  ▼
-END
+    [*] --> agent
+
+    agent --> tools        : has tool_calls
+    tools --> agent        : tool results appended
+
+    agent --> start_critique : no tool_calls (draft ready)
+
+    start_critique --> critique
+
+    critique --> revise        : REVISE notes
+    revise --> critique        : revision_count + 1
+
+    critique --> verify_sources : PASS
+    critique --> verify_sources : revision_count >= MAX_REVISIONS
+
+    verify_sources --> final_html
+    final_html --> send_email
+    send_email --> [*]
+
+    state agent {
+        direction LR
+        [*] --> llm_invoke
+        llm_invoke --> [*]
+    }
+    state critique {
+        direction LR
+        [*] --> checklist_9pt
+        checklist_9pt --> [*]
+    }
 ```
 
 **Conditional edges:**
@@ -245,6 +265,30 @@ async def critique(state: NewsletterState):
 | 7 | No banned buzzwords |
 | 8 | No template instruction labels leaked into prose |
 | 9 | Papers/repos/products formatted as `**[Title](url)**` |
+
+**Critique → Revise loop:**
+
+```mermaid
+flowchart TD
+    SC[start_critique\nSnapshot draft into state] --> C
+
+    C["critique\nLlama 3.3 70B as editor"] --> R1{Response?}
+
+    R1 -->|"PASS"| VS[verify_sources]
+    R1 -->|"revision_count >= 1"| VS
+    R1 -->|"REVISE: ..."| RV
+
+    RV["revise\nFull rewrite from scratch\nrevision_count += 1"] --> C
+
+    VS --> FH[final_html]
+
+    style SC fill:#1e3a5f,color:#93c5fd
+    style C fill:#3b1f5e,color:#c4b5fd
+    style RV fill:#3b1f5e,color:#c4b5fd
+    style VS fill:#1a3a2f,color:#6ee7b7
+    style FH fill:#1a3a2f,color:#6ee7b7
+    style R1 fill:#2d1b1b,color:#fca5a5
+```
 
 ---
 
@@ -378,59 +422,54 @@ All 7 tools are exposed as MCP-spec tools and automatically converted to LangCha
 
 ### 6.1 News Tool
 
-```
-Primary:  NewsAPI v2
-  └─ query: AI + research/breakthrough/startup/funding
-  └─ time window: last 7 days, sort: relevancy
-  └─ returns: title, description, url, published_at, source
+```mermaid
+flowchart LR
+    N1["NewsAPI v2\nAI query · last 7 days\nsort: relevancy"] -->|"< 5 results or no key"| N2
+    N2["RSS Fallback via feedparser\nTechCrunch AI · The Verge AI\nMIT Tech Review · VentureBeat\nArs Technica · Wired AI"]
+    N1 & N2 --> N3["Deduplicate by URL\n→ top 5 articles"]
 
-Fallback: feedparser RSS (if NewsAPI returns < requested items or has no key)
-  └─ Feeds: TechCrunch AI, The Verge AI, MIT Tech Review,
-            VentureBeat AI, Ars Technica, Wired AI
-  └─ Filters: published within 7 days + AI keyword match
-  └─ Deduplication: by URL
+    style N1 fill:#1e3a5f,color:#93c5fd
+    style N2 fill:#2d2a1b,color:#fde68a
+    style N3 fill:#1a3a2f,color:#6ee7b7
 ```
 
 ### 6.2 arXiv Tool
 
-```
-Primary: arXiv Atom API
-  └─ Categories: cs.AI, cs.CL, cs.LG, cs.CV (OR query)
-  └─ Sort: submittedDate descending
-  └─ Generates: direct PDF link from abs URL
-  └─ Returns: Title, Authors (≤4 + "et al."), Published_on, Summary (≤300 chars), Link, Pdf_link
+```mermaid
+flowchart LR
+    A1["arXiv Atom API\ncs.AI · cs.CL · cs.LG · cs.CV\nsort: submittedDate desc"] -->|"< max_results"| A2
+    A2["Semantic Scholar Graph API\ntitle · authors · abstract\nopenAccessPdf · publicationDate"]
+    A1 & A2 --> A3["Deduplicate by title\n→ top N papers + PDF links"]
 
-Fallback: Semantic Scholar Graph API (if arXiv returns < max_results)
-  └─ Fields: title, authors, abstract, url, openAccessPdf, publicationDate
-  └─ Deduplication: by lowercase title
+    style A1 fill:#1e3a5f,color:#93c5fd
+    style A2 fill:#2d2a1b,color:#fde68a
+    style A3 fill:#1a3a2f,color:#6ee7b7
 ```
 
 ### 6.3 GitHub Tool
 
-```
-Primary: GitHub Search API
-  └─ Keywords: AI, LLM, machine learning, deep learning, GPT,
-               transformer, diffusion, neural network, RAG, fine-tuning, AI agent
-  └─ Filter: created >= 7 days ago, stars > 10
-  └─ Sort: stars descending
-  └─ Auth: Bearer token if GITHUB_TOKEN set (higher rate limit)
+```mermaid
+flowchart LR
+    G1["GitHub Search API\nkeywords: AI LLM GPT RAG ...\ncreated >= 7d ago · stars > 10\nBearer token if GITHUB_TOKEN set"] -->|"< 3 results / rate limited"| G2
+    G2["BeautifulSoup scrape\ngithub.com/trending?since=weekly\nAI keyword filter"]
+    G1 & G2 --> G3["Deduplicate by URL\n→ top 5 repos"]
 
-Fallback: BeautifulSoup scrape of github.com/trending?since=weekly
-  └─ Triggers if API returns < 3 results (e.g., rate limited)
-  └─ Filters: AI keyword match in name/description
+    style G1 fill:#1e3a5f,color:#93c5fd
+    style G2 fill:#2d2a1b,color:#fde68a
+    style G3 fill:#1a3a2f,color:#6ee7b7
 ```
 
 ### 6.4 Product Hunt Tool
 
-```
-Primary: Product Hunt GraphQL API v2
-  └─ Query: posts with topic "artificial-intelligence", sorted by votes, last 7 days
-  └─ Auth: Bearer PRODUCT_HUNT_TOKEN
-  └─ Returns: Name, Tagline, Description, Votes, Link
+```mermaid
+flowchart LR
+    P1["Product Hunt GraphQL v2\ntopic: artificial-intelligence\nsorted by votes · last 7 days\nBearer PRODUCT_HUNT_TOKEN"] -->|"error / empty"| P2
+    P2["Product Hunt RSS feed\nhttps://producthunt.com/feed\nAI keyword filter"]
+    P1 & P2 --> P3["→ top 3 AI products"]
 
-Fallback: Product Hunt RSS feed
-  └─ URL: https://www.producthunt.com/feed
-  └─ Filters: AI keyword match in title/description
+    style P1 fill:#1e3a5f,color:#93c5fd
+    style P2 fill:#2d2a1b,color:#fde68a
+    style P3 fill:#1a3a2f,color:#6ee7b7
 ```
 
 ---
@@ -538,6 +577,39 @@ The email is sent as `multipart/alternative`:
 
 **Directory:** `evals/`
 
+```mermaid
+flowchart TD
+    DRAFT["Final draft.md"] --> SC & LJ
+
+    subgraph SC["structural_checks.py — no LLM, no network"]
+        direction TB
+        SC1["✅ Word count 550–950"]
+        SC2["✅ All 9 section emojis present"]
+        SC3["✅ Quick Hits have source links"]
+        SC4["✅ No banned buzzwords"]
+        SC5["✅ HTML well-formed (tag balance)"]
+    end
+
+    subgraph LJ["llm_judge.py — Llama 3.3 70B via DeepInfra"]
+        direction TB
+        LJ1["Scores 1–5 on curiosity-inducing quality\n1 = flat recap · 5 = strong hooks + non-obvious angles"]
+        LJ2["Returns JSON: score + rationale"]
+        LJ1 --> LJ2
+    end
+
+    SC --> R1{"passed?"}
+    R1 -->|yes| OK["✅ PASS — newsletter clean"]
+    R1 -->|no| FAIL["❌ issues list returned"]
+
+    LJ2 --> SCORES["evals/scores/{date}.json\ntrend tracking over time"]
+
+    style SC fill:#1a2a1a,color:#86efac
+    style LJ fill:#1e1a3a,color:#c4b5fd
+    style OK fill:#14532d,color:#86efac
+    style FAIL fill:#450a0a,color:#fca5a5
+    style SCORES fill:#1c1917,color:#d6d3d1
+```
+
 ### Structural Checks (`structural_checks.py`)
 
 Offline, no-LLM validation via regex pattern matching:
@@ -550,12 +622,9 @@ Offline, no-LLM validation via regex pattern matching:
 
 ### LLM Judge (`llm_judge.py`)
 
-Uses the same DeepInfra `Llama-3.3-70B-Instruct` model to score the newsletter on a 1–10 scale across dimensions:
+Uses `Llama-3.3-70B-Instruct` via DeepInfra to score the newsletter **1–5** on a single axis:
 
-- **Hook quality** — does the intro grab attention?
-- **Implication depth** — does every item explain the "so what"?
-- **Source diversity** — are multiple data sources represented?
-- **Structural correctness** — is the format exactly followed?
+> *Does it feel genuinely curiosity-inducing (surprising angles, non-obvious implications, strong hooks) — or is it a flat journalist recap?*
 
 Scores are serialized to `evals/scores/{date}.json` for tracking quality over time.
 
@@ -567,13 +636,25 @@ Scores are serialized to `evals/scores/{date}.json` for tracking quality over ti
 
 The pipeline can run on a **cron schedule** (e.g., every Monday morning) or be manually triggered via `workflow_dispatch`.
 
-**Steps:**
-1. Checkout repo
-2. Set up Python 3.12
-3. Install dependencies from `requirements.txt`
-4. Run `python state.py` with secrets injected as env vars
-5. Upload `Newsletter_html/` and `Newsletter_mds/` as artifacts
-6. (Optional) Run `evals/structural_checks.py` as a quality gate
+```mermaid
+flowchart TD
+    T(["⏰ cron schedule\nor workflow_dispatch"]) --> A
+
+    A["Checkout repo"] --> B["Set up Python 3.12"]
+    B --> C["pip install -r requirements.txt"]
+    C --> D["python state.py\n(secrets injected as env vars)"]
+    D --> E["Upload artifacts\nNewsletter_html/ · Newsletter_mds/"]
+    E --> F["Run structural_checks.py\n(optional quality gate)"]
+    F --> G{"passed?"}
+    G -->|yes| H["✅ Workflow success"]
+    G -->|no| I["❌ Annotate failed checks"]
+
+    style T fill:#1c1917,color:#d6d3d1
+    style D fill:#1e3a5f,color:#93c5fd
+    style F fill:#1a2a1a,color:#86efac
+    style H fill:#14532d,color:#86efac
+    style I fill:#450a0a,color:#fca5a5
+```
 
 **Required secrets** (set in GitHub repo settings):
 - `DEEPINFRA_API_KEY`
@@ -626,51 +707,48 @@ NEWSLETTER_RECIPIENTS=recipient1@email.com,recipient2@email.com
 
 ## 13. Data Flow — End-to-End
 
-```
-User runs: python state.py
-    │
-    ▼
-1. LangGraph initializes with:
-   - HumanMessage: "Write this week's AI newsletter. Use your tools..."
-   - revision_count: 0
-    │
-    ▼
-2. AGENT: LLM sees 7 tools, decides to call them all
-    │
-    ├─► get_ai_news()               → 5 articles (NewsAPI or RSS)
-    ├─► get_arxiv_papers()          → 3–5 papers (arXiv or Semantic Scholar)
-    ├─► get_github_trending()       → 5 repos (GitHub API or scraped trending)
-    ├─► get_ai_products_trending()  → 3 products (GraphQL or RSS)
-    ├─► get_hackernews_trending()   → top AI stories from HN
-    ├─► get_huggingface_trending()  → trending models + daily papers
-    └─► search_web(theme)           → deep dive on 1 recurring theme
-    │
-    ▼
-3. AGENT: Synthesizes all tool results → writes full Markdown newsletter
-    │
-    ▼
-4. START_CRITIQUE: Snapshots draft → resets revision_count
-    │
-    ▼
-5. CRITIQUE: LLM editor reviews 9-point checklist
-    │
-    ├─ PASS → continue
-    └─ REVISE: [notes] → REVISE node → back to CRITIQUE (max 1 time)
-    │
-    ▼
-6. VERIFY_SOURCES: Checks every hyperlink via HTTP
-   - Dead links: URL stripped, anchor text preserved
-    │
-    ▼
-7. FINAL_HTML: Markdown → styled email HTML (html_parser.py)
-    │
-    ▼
-8. SEND_EMAIL: SMTP delivery (multipart/alternative)
-    │
-    ▼
-9. Outputs saved to disk:
-   - Newsletter_mds/{date}.md
-   - Newsletter_html/{date}.html
+```mermaid
+flowchart TD
+    START(["python state.py"]) --> INIT
+
+    INIT["LangGraph init\nHumanMessage: 'Write this week...'\nrevision_count = 0"] --> AGENT
+
+    subgraph RESEARCH["Research Phase — AGENT + TOOLS loop"]
+        direction LR
+        AGENT["Llama 3.3 70B\nwith 7 tools bound"] --> TOOLS
+        TOOLS --> T1["get_ai_news → 5 articles"]
+        TOOLS --> T2["get_arxiv_papers → 3-5 papers"]
+        TOOLS --> T3["get_github_trending → 5 repos"]
+        TOOLS --> T4["get_ai_products_trending → 3 products"]
+        TOOLS --> T5["get_hackernews_trending → HN stories"]
+        TOOLS --> T6["get_huggingface_trending → models + papers"]
+        TOOLS --> T7["search_web → 1 deep-dive"]
+        T1 & T2 & T3 & T4 & T5 & T6 & T7 --> AGENT
+    end
+
+    AGENT -->|"no more tool calls"| SC
+
+    SC["start_critique\nSnapshot draft · reset revision_count"] --> CR
+
+    subgraph EDITORIAL["Editorial Phase"]
+        direction TB
+        CR["critique\n9-point checklist"] -->|REVISE| RV
+        RV["revise\nFull rewrite from scratch"] -->|"revision_count + 1"| CR
+        CR -->|"PASS or max revisions"| VS
+    end
+
+    VS["verify_sources\nHTTP check every link"] --> FH
+    FH["final_html\nMarkdown → styled HTML"] --> SE
+    SE["send_email\nSMTP STARTTLS · multipart/alternative"] --> OUT
+
+    OUT["📁 Newsletter_mds/{date}.md\n🌐 Newsletter_html/{date}.html\n📧 Email delivered"]
+
+    style RESEARCH fill:#0f1e30,color:#93c5fd
+    style EDITORIAL fill:#1e0f30,color:#c4b5fd
+    style VS fill:#0f1e17,color:#6ee7b7
+    style FH fill:#0f1e17,color:#6ee7b7
+    style SE fill:#2d0f1e,color:#f9a8d4
+    style OUT fill:#1c1917,color:#d6d3d1
 ```
 
 **Typical total runtime:** 3–8 minutes (dominated by 7 tool calls + 2 LLM passes for draft + critique)
