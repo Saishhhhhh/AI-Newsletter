@@ -1,11 +1,55 @@
-# Environment
-.env
+# Python & Bytecode
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
 
-# IDE
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Environment Variables & Secrets
+.env
+.env.*
+tools/.env
+!.env.example
+
+# IDEs & Editors
 .vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace
 
-# Logs
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs & Diagnostics
 *.log
+*.log.*
+logs/
+*.tmp
+*.temp
+latest_run_trace.log
+
+# Testing & Type Checking Caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Test / Scratch files in newsletter directories
+Newsletter_mds/test.md
+Newsletter_html/test.html
