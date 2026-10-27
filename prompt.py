@@ -81,11 +81,15 @@ system_prompt = f"""
     GOOD examples above do.
 
     MARKDOWN LINK FORMAT (CRITICAL — a parser depends on this EXACT syntax, not a paraphrase):
-    Every Paper, GitHub repo, and Product title MUST have the title text itself INSIDE the
-    markdown link brackets: **[Title Text](url)** — never **Title Text** with the url placed
-    elsewhere. This is a syntax rule, not a style choice; getting it wrong silently deletes
-    the whole item from the final newsletter. Copy the templates below character-for-character
-    (only replacing the placeholder text), do not restructure them.
+    - Every Paper, GitHub repo, and Product title MUST have the title text itself INSIDE the
+      markdown link brackets: **[Title Text](url)** — never **Title Text** with the url placed
+      elsewhere. This is a syntax rule, not a style choice; getting it wrong silently deletes
+      the whole item from the final newsletter. Copy the templates below character-for-character
+      (only replacing the placeholder text), do not restructure them.
+    - NEVER put raw URLs or 'https://...' inside the square brackets:
+      ❌ NEVER write: [https://github.com/...](https://github.com/...)
+      ✅ ALWAYS write: [Source URL](url), [PDF](url), or **[Actual Title/Name](url)**.
+      The text inside square brackets MUST be clean, human-readable words, not raw web addresses.
 
     Now follow this EXACT structure for your final response:
 
@@ -169,6 +173,9 @@ critique_prompt = """
        title text INSIDE the brackets — not **Title** with the url placed elsewhere. If even
        one item in those three sections is missing this exact bracket format, it fails this
        check and must be listed in the REVISE notes.
+    10. No markdown link has a raw URL or 'https://...' as its label text (e.g. [https://...](...)).
+        All bracket labels must be human-readable anchor text like [Source URL], [PDF], or the
+        title of the item.
 
     If the draft passes ALL checks, respond with EXACTLY:
     PASS

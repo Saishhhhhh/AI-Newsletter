@@ -150,24 +150,38 @@ def _parse_big_story(text: str, story: dict):
     lines = [l for l in text.splitlines() if l.strip()]
     body_lines = []
     for line in lines:
-        url_m = re.search(r"\[Source URL\]\((.+?)\)", line)
+        url_m = re.search(r"\[([^\]]+)\]\((https?://[^\s)]+)\)\.?\s*$", line)
         if url_m:
-            story["url"] = url_m.group(1)
-            line = re.sub(r"\s*\[Source URL\]\(.+?\)", "", line).strip()
+            story["url"] = url_m.group(2)
+            line = line[:url_m.start()].strip()
+        else:
+            fallback_m = re.search(r"\[Source URL\]\((https?://[^\s)]+)\)", line)
+            if fallback_m:
+                story["url"] = fallback_m.group(1)
+                line = re.sub(r"\s*\[Source URL\]\(.+?\)", "", line).strip()
         body_lines.append(line)
     story["body"] = " ".join(body_lines).strip()
 
 
 def _parse_quick_hits(text: str, hits: list):
-    """Each bullet: - Text [Source URL](url)"""
+    """Each bullet: - Text [Source URL](url) or - Text [label](url)"""
     for line in text.splitlines():
         line = line.strip()
         if not line.lstrip()[:1] in ("-", "*"):
             continue
         line = line.lstrip("-* ").strip()
-        url_m = re.search(r"\[Source URL\]\((.+?)\)", line)
-        url = url_m.group(1) if url_m else ""
-        clean = re.sub(r"\s*\[Source URL\]\(.+?\)", "", line).strip()
+        url_m = re.search(r"\[([^\]]+)\]\((https?://[^\s)]+)\)\.?\s*$", line)
+        if url_m:
+            url = url_m.group(2)
+            clean = line[:url_m.start()].strip()
+        else:
+            fallback_m = re.search(r"\[Source URL\]\((https?://[^\s)]+)\)", line)
+            if fallback_m:
+                url = fallback_m.group(1)
+                clean = re.sub(r"\s*\[Source URL\]\(.+?\)", "", line).strip()
+            else:
+                url = ""
+                clean = line
         hits.append({"text": clean, "url": url})
 
 
@@ -251,34 +265,48 @@ def _parse_papers(text: str, papers: list):
 
 def _parse_github(text: str, repos: list):
     """
-    Each repo: - **[name](url)** — ⭐ Xk this week
-      Description line
+    Each repo: - **[name](url)** — ⭐ Xk this week. Description...
+    (Supports description on the same line or on subsequent lines)
     """
     current = None
     for line in text.splitlines():
         line_s = line.strip()
-        m = re.match(r"[-*]?\s*\*\*\[(.+?)\]\((.+?)\)\*\*\s*(?:[—–-]\s*⭐\s*([\d\.]+[kKmM]?)\s*this week)?", line_s, re.I)
-        if m and m.group(1):
+        if not line_s:
+            continue
+
+        is_bullet = line_s[:1] in ("-", "*")
+        m = re.match(r"[-*]?\s*\*\*\[(.+?)\]\((.+?)\)\*\*(.*)", line_s) if is_bullet else None
+        if m:
             if current:
                 repos.append(current)
-            stars_raw = m.group(3) or ""
+            name = m.group(1).strip()
+            url = m.group(2).strip()
+            rest = m.group(3).strip(" —–-")
+
+            stars_raw = ""
+            stars_m = re.search(r"⭐\s*([\d\.]+[kKmM]?)(?:\s*stars?)?(?:\s*this week)?", rest, re.I)
+            if stars_m:
+                stars_raw = stars_m.group(1)
+                rest = (rest[:stars_m.start()] + rest[stars_m.end():]).strip(" —–-.")
+
             current = {
-                "name": m.group(1),
-                "url": m.group(2),
+                "name": name,
+                "url": url,
                 "stars": stars_raw,
-                "description": "",
+                "description": rest,
             }
             continue
 
-        fallback = _fallback_bold_title(line_s) if line_s[:1] in ("-", "*") and "**" in line_s else None
+        fallback = _fallback_bold_title(line_s) if is_bullet and "**" in line_s else None
         if fallback:
             if current:
                 repos.append(current)
             name, url, rest_clean = fallback
-            stars_m = re.search(r"⭐\s*([\d\.]+[kKmM]?)\s*(?:stars?)?\s*this week", rest_clean, re.I)
-            stars_raw = stars_m.group(1) if stars_m else ""
+            stars_raw = ""
+            stars_m = re.search(r"⭐\s*([\d\.]+[kKmM]?)(?:\s*stars?)?(?:\s*this week)?", rest_clean, re.I)
             if stars_m:
-                rest_clean = rest_clean[:stars_m.start()].strip(" -—–") or rest_clean[stars_m.end():].strip(" -—–")
+                stars_raw = stars_m.group(1)
+                rest_clean = (rest_clean[:stars_m.start()] + rest_clean[stars_m.end():]).strip(" —–-.")
             current = {
                 "name": name,
                 "url": url,
@@ -287,7 +315,7 @@ def _parse_github(text: str, repos: list):
             }
             continue
 
-        if current and line_s:
+        if current and not is_bullet:
             sep = " " if current["description"] else ""
             current["description"] += sep + line_s
 
@@ -590,6 +618,13 @@ def render_html(data: dict) -> str:
 
     inner = "\n".join(parts)
 
+    def _replace_markdown_link(m):
+        label, url = m.group(1).strip(), m.group(2).strip()
+        if label.startswith("http://") or label.startswith("https://"):
+            label = "Source →"
+        return f'<a href="{url}" style="color:#2F80ED;font-weight:600;text-decoration:none;">{label}</a>'
+
+    inner = re.sub(r"\[([^\]]+)\]\((https?://[^\s)]+)\)", _replace_markdown_link, inner)
     inner = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", inner)
 
     return f"""<!doctype html>
