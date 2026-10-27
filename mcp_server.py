@@ -2,6 +2,9 @@ from tools.arxiv_tool import search_arxiv
 from tools.github_tool import get_top_repos
 from tools.news_tool import get_ai_news_last_week
 from tools.product_hunt_tool import get_trending_ai_products
+from tools.hackernews_tool import get_hackernews_trending as fetch_hackernews_trending
+from tools.huggingface_tool import get_huggingface_trending as fetch_huggingface_trending
+from tools.tavily_tool import tavily_search
 from fastmcp import FastMCP
 import json
 
@@ -13,7 +16,12 @@ mcp = FastMCP(
         "- get_ai_news: latest AI news\n"
         "- get_arxiv_papers: recent AI research papers\n"
         "- get_github_trending: trending AI GitHub repos\n"
-        "- get_ai_products_trending: trending AI tools from Product Hunt\n\n"
+        "- get_ai_products_trending: trending AI tools from Product Hunt\n"
+        "- get_hackernews_trending: high-signal AI stories from Hacker News\n"
+        "- get_huggingface_trending: trending models and daily papers from Hugging Face\n"
+        "- search_web: general-purpose web search for digging deeper into one trending "
+        "theme once the other tools have been called — use this for a single follow-up "
+        "deep-dive, not as a first-pass research tool.\n\n"
         "All tools return structured JSON strings."
     )
 )
@@ -126,6 +134,60 @@ def get_ai_products_trending() -> str:
 
     except Exception as e:
         return json.dumps({"error": str(e)})
+
+@mcp.tool()
+def get_hackernews_trending() -> str:
+    """
+    Fetch high-signal AI stories from Hacker News over the past week.
+
+    Returns:
+        str: A JSON string containing a list of stories with:
+            - Title (str): Story title
+            - Points (int): HN points
+            - Comments (int): Number of comments
+            - Link (str): URL to the story (external link or HN discussion)
+            - DiscussionLink (str): URL to the Hacker News discussion thread
+    """
+    try:
+        response = fetch_hackernews_trending()
+        return json.dumps(response, indent=2, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def get_huggingface_trending() -> str:
+    """
+    Fetch trending models and today's daily papers from Hugging Face.
+
+    Returns:
+        str: A JSON string with:
+            - models (list): trending models with Name, Likes, Downloads, Link
+            - papers (list): daily papers with Title, Summary, Link
+    """
+    try:
+        response = fetch_huggingface_trending()
+        return json.dumps(response, indent=2, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def search_web(query: str, max_results: int = 5) -> str:
+    """
+    Search the web for a specific trending theme once the other research tools have
+    already been called. Use this for ONE follow-up deep-dive on the most interesting
+    recurring theme you found, not as a first-pass research tool.
+
+    Returns:
+        str: A JSON string containing a list of results with Title, Content, Link, Score.
+    """
+    try:
+        response = tavily_search(query, max_results)
+        return json.dumps(response, indent=2, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
 
 if __name__ == "__main__":
     mcp.run()

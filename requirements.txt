@@ -1,7 +1,11 @@
 langgraph
-langchain-groq
+langchain-openai
 langchain-core
 langchain-mcp-adapters
 fastmcp
 python-dotenv
 pydantic
+requests
+tavily-python
+feedparser
+beautifulsoup4
