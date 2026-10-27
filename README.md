@@ -2,152 +2,203 @@
 
 # 🤖 AI Newsletter Agent
 
-### *An Autonomous ReAct Agent that Researches and Writes High-Signal Tech Newsletters*
+### *An Autonomous ReAct Agent that Researches, Critiques, and Publishes High-Signal Tech Newsletters*
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Agent-green.svg)](https://www.langchain.com/langgraph)
 [![MCP](https://img.shields.io/badge/MCP-Protocol-purple.svg)](https://modelcontextprotocol.io/)
-[![LLM](https://img.shields.io/badge/Powered%20by-Groq-orange.svg)](https://groq.com/)
+[![LLM](https://img.shields.io/badge/Powered%20by-DeepInfra%20(Llama%203.3%2070B)-orange.svg)](https://deepinfra.com/)
 
-**AI Newsletter Agent** is an autonomous AI workflow that dynamically queries real-time web sources to draft, format, and render a production-grade HTML tech newsletter. 
-
-> **Note:** This is a practice project built specifically to explore and master **Advanced Agentic AI** concepts, including cyclic reasoning (ReAct), conditional routing, and the Model Context Protocol (MCP).
+**AI Newsletter Agent** is an autonomous, multi-agent editorial workflow that dynamically queries real-time technical sources, verifies link liveness, executes an editorial self-critique loop, and renders a production-grade HTML email newsletter with automated delivery.
 
 </div>
 
 ---
 
-## 🌟 Features
+## 🌟 Key Capabilities
 
-### 🧠 **Autonomous ReAct Reasoning Loop**
-Unlike static data pipelines, this agent thinks for itself. It analyzes the user request, decides which research tools to call, evaluates the returned data, and seamlessly recovers if a tool fails—looping continuously until it has enough context to write the draft.
+### 🧠 **Autonomous ReAct Reasoning with Multi-Tier Fallbacks**
+The agent operates over the **Model Context Protocol (MCP)** via a decoupled **FastMCP** server. Every research tool is built with a primary API and an automated fallback layer to guarantee data availability:
 
-### 🔌 **Decoupled MCP Architecture**
-Data fetching is entirely decoupled from the LLM via a custom **FastMCP** server. The agent securely communicates with generic Python tools over `stdio`.
-- **Arxiv:** Latest AI research papers.
-- **GitHub Trending:** Top AI repositories.
-- **News Aggregator:** Top AI headlines of the week.
-- **Product Hunt:** Trending AI tools.
-- **Hacker News:** High-signal AI stories by points.
-- **Hugging Face:** Trending models + daily papers.
-- **Web Search (Tavily):** A single follow-up deep-dive the agent can trigger on whichever theme recurs across the other sources.
-
-### 🧭 **Self-Critique + Source Verification Loop**
-After drafting, a second LLM pass reviews the draft against a strict checklist (structure, hooks, non-obvious angles, banned buzzwords) and either passes it or sends it back for one bounded revision. Before rendering, every source link in the draft is HEAD-checked and silently stripped if dead.
-
-### 📝 **High-Signal, Curiosity-Driven Writing**
-The agent operates under heavily constrained prompt engineering: **negative constraints** (banned buzzwords), **few-shot examples**, required **hooks** (no flat summary openers), and a mandatory **🔦 Spotlight** — the single most surprising/non-obvious item each issue — to strip out "AI-fluff" and keep readers hooked.
-
-### 🎨 **Polished HTML Template + Email Delivery**
-The final markdown is parsed into a hand-built, email-client-safe HTML template with a gradient hero band, per-section accent colors, a pull-quote Big Story, and a spotlight callout — then sent via SMTP as a multipart HTML + plaintext email.
-
-### 📊 **Evals**
-`evals/run_evals.py` checks every generated issue for structural compliance (word count, required sections, source links, banned words) and runs an LLM-as-judge pass that scores curiosity/non-obviousness 1-5, tracked over time in `evals/scores/`.
-
-### 🤖 **Scheduled via GitHub Actions**
-`.github/workflows/newsletter.yml` runs the whole pipeline weekly (and on-demand via `workflow_dispatch`), commits the new issue back to the repo, and emails it out — no manual runs required.
+* **AI News** ([`tools/news_tool.py`](file:///c:/Karm/Projects/AI-Newsletter/tools/news_tool.py)):
+  * *Primary*: NewsAPI querying AI/ML topics from the past 7 days.
+  * *Fallback / Enrichment*: 6 curated RSS feeds (**TechCrunch AI**, **The Verge AI**, **MIT Tech Review**, **VentureBeat AI**, **Ars Technica**, **Wired AI**) parsed via `feedparser`, deduplicated, and filtered for freshness.
+* **ArXiv Papers** ([`tools/arxiv_tool.py`](file:///c:/Karm/Projects/AI-Newsletter/tools/arxiv_tool.py)):
+  * *Primary*: arXiv Atom API targeted across categories `cs.AI`, `cs.CL`, `cs.LG`, `cs.CV`, automatically synthesizing direct PDF download links (`https://arxiv.org/pdf/<id>.pdf`).
+  * *Fallback*: Semantic Scholar API with rate-limit protection.
+* **GitHub Trending** ([`tools/github_tool.py`](file:///c:/Karm/Projects/AI-Newsletter/tools/github_tool.py)):
+  * *Primary*: GitHub Search API with `created:>DATE` (last 7 days) and stars sorting, supporting `GITHUB_TOKEN` to avoid rate limits.
+  * *Fallback*: Scrapes `github.com/trending?since=weekly` using `BeautifulSoup`.
+* **Product Hunt** ([`tools/product_hunt_tool.py`](file:///c:/Karm/Projects/AI-Newsletter/tools/product_hunt_tool.py)):
+  * *Primary*: Product Hunt GraphQL v2 API (`PRODUCT_HUNT_TOKEN`).
+  * *Fallback*: Product Hunt public RSS feed parsed with AI keyword filtering.
+* **Hacker News** ([`tools/hackernews_tool.py`](file:///c:/Karm/Projects/AI-Newsletter/tools/hackernews_tool.py)):
+  * Algolia HN Search API pulling top AI discussions (>50 points) from the past 7 days.
+* **Hugging Face** ([`tools/huggingface_tool.py`](file:///c:/Karm/Projects/AI-Newsletter/tools/huggingface_tool.py)):
+  * Fetches trending open-source weights and daily research papers.
+* **Web Deep-Dive** ([`tools/tavily_tool.py`](file:///c:/Karm/Projects/AI-Newsletter/tools/tavily_tool.py)):
+  * Tavily search integration allowing the model one focused follow-up investigation into recurring themes.
 
 ---
 
-## 🔄 The LangGraph Workflow
+### 🧐 **Self-Critique & Revision Loop**
+Drafts are not published blindly. A dedicated editor pass judges the draft against a strict 9-point checklist:
+1. **Length**: 600–900 words.
+2. **Sections**: All 8 sections present + closing `🔦 SPOTLIGHT`.
+3. **Format**: Every Paper, Repo, and Product formatted as `**[Title](url)**`.
+4. **Negative Constraints**: Zero tolerance for AI buzzwords (`"game-changer"`, `"revolutionary"`, `"cutting-edge"`, `"in today's fast-paced world"`, `"unlock the power of"`).
+5. **Hook Openers**: Required tension/numbers/questions (no flat summaries).
+6. **Anti-Leak Prose**: Natural fused sentences; no echoing template instruction labels.
 
-The core of this project is built on **LangGraph**, using a conditional router to simulate autonomous thought.
+If issues are found, the editor returns actionable feedback and routes to a `revise` node (capped at 1 revision pass).
 
-<div align="center">
-  <img src="./workflow_graph.png" alt="LangGraph Architecture" width="400"/>
-</div>
+---
 
-1. **Agent Node:** The LLM evaluates the system prompt and conversation history, calling research tools until it has enough signal, optionally doing one `search_web` deep-dive on a recurring theme.
-2. **Critique Node:** A second LLM pass checks the draft against the style/structure checklist and either passes it or requests a revision (capped at one extra pass).
-3. **Verify Sources Node:** HEAD-checks every link in the draft and strips any that are dead.
-4. **HTML Node:** Parses the final markdown draft into the styled HTML email template.
-5. **Send Email Node:** Emails the rendered HTML (with a plaintext fallback) to every address in `NEWSLETTER_RECIPIENTS`.
+### 🔗 **Automated Source Link Verification**
+Before rendering, the graph extracts every markdown URL and executes an HTTP `HEAD`/`GET` check. Dead or unreachable links are stripped back to plain text to prevent broken links in subscriber inboxes.
+
+---
+
+### 🎨 **Responsive HTML Email Template**
+[`html_parser.py`](file:///c:/Karm/Projects/AI-Newsletter/html_parser.py) compiles markdown into an email-client-compatible HTML layout featuring:
+* Gradient hero header card.
+* Color-coded section cards (blue, purple, sky blue, dark slate, green, orange, amber).
+* Pull-quote Big Story block with a call-to-action button.
+* Dedicated Amber callout card for the **Spotlight**.
+* Star count pill badges for GitHub repositories.
+* Automatic plaintext fallback generation (`html_to_plaintext`) for multipart MIME delivery.
+
+---
+
+### 📊 **Quality Evaluations (Evals)**
+Run [`evals/run_evals.py`](file:///c:/Karm/Projects/AI-Newsletter/evals/run_evals.py) to validate any issue:
+* **Structural Checks** ([`evals/structural_checks.py`](file:///c:/Karm/Projects/AI-Newsletter/evals/structural_checks.py)): Deterministic verification of word counts, required sections, source links, banned buzzwords, and well-formed HTML tags.
+* **LLM-as-a-Judge** ([`evals/llm_judge.py`](file:///c:/Karm/Projects/AI-Newsletter/evals/llm_judge.py)): Scores curiosity and non-obvious builder angles on a 1–5 scale, saving trend history in `evals/scores/<date>.json`.
+
+---
+
+## 🔄 The LangGraph Architecture
+
+```
+[START]
+   │
+   ▼
+[agent] ◄──────────────┐ (7 research tools + 1 deep-dive web search)
+   │                   │
+   ├─ (tool_calls?) ──►[tools (ToolNode)]
+   │
+   └─ (draft ready)
+           │
+           ▼
+    [start_critique]
+           │
+           ▼
+       [critique] ◄─────────┐
+           │                │
+           ├─ (needs fix?) ─►[revise] (capped at MAX_REVISIONS = 1)
+           │
+           ▼ (PASS or cap reached)
+    [verify_sources] (checks URL liveness via HTTP HEAD/GET, strips dead links)
+           │
+           ▼
+      [final_html] (renders email HTML)
+           │
+           ▼
+      [send_email] (dispatches MIME email via Gmail SMTP)
+           │
+           ▼
+         [END]
+```
 
 ---
 
 ## 🚀 Quick Start
 
-### Installation
+### 1. Installation
 
-1. **Clone the repository**
 ```bash
 git clone https://github.com/yourusername/AI-Newsletter.git
 cd AI-Newsletter
-```
-
-2. **Install dependencies**
-Ensure you have `uv` installed, or use standard pip targeting a virtual environment:
-```bash
 pip install -r requirements.txt
 ```
 
-3. **Set up your environment variables**
+### 2. Configure Environment Variables
+
 Copy `.env.example` to `.env` and fill in your keys:
+
 ```bash
 cp .env.example .env
 ```
+
 ```text
-# Research sources
-PRODUCT_HUNT_TOKEN=your_product_hunt_token_here
-NEWS_API_KEY=your_news_api_key_here
-TAVILY_API_KEY=your_tavily_api_key_here
+# --- Research Sources ---
+NEWS_API_KEY=your_news_api_key
+PRODUCT_HUNT_TOKEN=your_product_hunt_token
+TAVILY_API_KEY=your_tavily_api_key
+GITHUB_TOKEN=your_github_token_optional
 
-# LLM generation (DeepInfra, OpenAI-compatible endpoint)
-DEEPINFRA_API_KEY=your_deepinfra_api_key_here
+# --- LLM Generation (DeepInfra) ---
+DEEPINFRA_API_KEY=your_deepinfra_key
 
-# Tracing (optional)
+# --- Tracing (Optional) ---
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
-LANGCHAIN_API_KEY=your_langsmith_key_here
+LANGCHAIN_API_KEY=your_langsmith_key
 LANGCHAIN_PROJECT=AI Newsletter Agent
 
-# Email delivery (SMTP)
+# --- Email Delivery (SMTP) ---
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your_email@gmail.com
 SMTP_PASSWORD=your_gmail_app_password
-NEWSLETTER_RECIPIENTS=someone@example.com,other@example.com
+NEWSLETTER_RECIPIENTS=subscriber1@example.com,subscriber2@example.com
 ```
 
 ---
 
 ## 💻 Usage
 
-To kick off the autonomous agent and generate (and email) this week's newsletter:
-
+### Generate and Deliver Newsletter
+To kick off the autonomous pipeline (research, draft, critique, verify, render, and email):
 ```bash
 python state.py
 ```
+Outputs are automatically written to `Newsletter_mds/<Date>.md` and `Newsletter_html/<Date>.html`, and delivered to `NEWSLETTER_RECIPIENTS`.
 
-1. The MCP server will automatically boot up in the background.
-2. You can track the agent's reasoning loop and tool execution in your LangSmith dashboard.
-3. Once completed, a new `.html` and `.md` file titled with today's date will appear in your output folders, and an email goes out to `NEWSLETTER_RECIPIENTS` (if set).
+### Run Step-by-Step Diagnostic Inspection
+To execute a fully instrumented run that records every tool call, intermediate draft, critique notes, and URL check to a trace log without altering production files:
+```bash
+python run_verbose_inspection.py
+```
+Generates a complete execution trace in `latest_run_trace.log`.
 
-To score the latest issue for structural compliance and curiosity/non-obviousness:
-
+### Run Content Quality Evaluations
+To score the latest generated newsletter for structural compliance and curiosity/non-obviousness:
 ```bash
 python evals/run_evals.py
 ```
 
-### Running on a schedule
+---
 
-`.github/workflows/newsletter.yml` runs this weekly via GitHub Actions and commits the new
-issue back to the repo. Add the following as **repository secrets** (Settings → Secrets and
-variables → Actions): `DEEPINFRA_API_KEY`, `NEWS_API_KEY`, `PRODUCT_HUNT_TOKEN`,
-`TAVILY_API_KEY`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`,
-`NEWSLETTER_RECIPIENTS` (and the `LANGCHAIN_*` ones if you want tracing in CI too). You can
-also trigger a run manually from the Actions tab via `workflow_dispatch`.
+## ⏱️ Automated Scheduling (GitHub Actions)
+
+[`.github/workflows/newsletter.yml`](file:///c:/Karm/Projects/AI-Newsletter/.github/workflows/newsletter.yml) automates publication:
+* **Trigger**: Scheduled weekly cron (Mondays at 13:00 UTC) + manual trigger (`workflow_dispatch`).
+* **Execution**: Runs in a Python 3.12 runner, runs `state.py`, executes quality evals, and commits the newly generated `.md` and `.html` files directly back to the repository.
+
+Add your credentials under your repository's **Settings ➔ Secrets and variables ➔ Actions**.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **LangGraph**: Orchestrates the cyclic Agent → Critique → Verify → Email workflow.
-- **FastMCP**: Hosts the data-fetching tools securely.
-- **DeepInfra**: Serves the LLM (`meta-llama/Llama-3.3-70B-Instruct`) via an OpenAI-compatible API.
-- **Tavily**: Powers the agent's deep-dive search and source-liveness checks.
-- **LangSmith**: Used for tracing the agent's internal thought process.
-- **GitHub Actions**: Runs the pipeline on a weekly schedule.
+- **LangGraph**: Orchestrates the cyclic agent, critique, revision, and delivery graph.
+- **FastMCP**: Decouples and serves data tools over standard I/O (`stdio`).
+- **DeepInfra**: High-throughput inference for `meta-llama/Llama-3.3-70B-Instruct`.
+- **Tavily**: Powers search deep-dives and URL liveness verification.
+- **Feedparser & BeautifulSoup**: Extracts and parses curated RSS feeds and trending web sources.
+- **LangSmith**: Full-graph tracing and observability.
+- **GitHub Actions**: Automated CI/CD scheduled execution.
 
 ---
 
